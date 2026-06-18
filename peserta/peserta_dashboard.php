@@ -12,19 +12,65 @@
     $id_user   = $_SESSION['id_user'];
     $nama_user = $_SESSION['nama'];
 
-    /* ==========================================
+/* ==========================================
        LOGIKA PROSES ABSENSI (MASUK & KELUAR)
     ========================================== */
     if (isset($_POST['aksi_absen'])) {
         $id_daftar = $_POST['id_daftar'];
         
+        // --- BAGIAN ABSEN MASUK (Biarkan seperti ini) ---
         if ($_POST['aksi_absen'] == 'masuk') {
-            // Catat waktu masuk
             mysqli_query($koneksi, "INSERT INTO absensi (id_daftar, waktu_in) VALUES ('$id_daftar', NOW())");
             echo "<script>alert('Berhasil Absen Masuk! Selamat belajar.'); window.location='peserta_dashboard.php';</script>";
             exit;
         } 
+        
+        // --- BAGIAN ABSEN KELUAR (Ini yang kita patch) ---
+        elseif ($_POST['aksi_absen'] == 'keluar') {
+            $id_absen = $_POST['id_absen'];
+            $target_jam = $_POST['target_jam'];
+            $target_menit = $target_jam * 60; // Konversi target ke menit
+            
+            // Ambil waktu_in terlebih dahulu dari database
+            $query_waktu = mysqli_query($koneksi, "SELECT waktu_in FROM absensi WHERE id_absen = '$id_absen'");
+            $data_absen  = mysqli_fetch_assoc($query_waktu);
+            
+            $waktu_in  = strtotime($data_absen['waktu_in']);
+            $waktu_out = time(); // Menangkap timestamp saat ini
+            
+            // Hitung selisih waktu dalam satuan menit
+            $selisih_detik = $waktu_out - $waktu_in;
+            $menit_belajar_hari_ini = floor($selisih_detik / 60);
 
+            // ========================================================
+            // ---> INI DIA BAGIAN NOMOR 1 (Validasi BVA 0 Menit) <---
+            // ========================================================
+            if ($menit_belajar_hari_ini < 1) {
+                // Simpan pesan error ke session, lalu hentikan proses
+                $_SESSION['error_absen'] = "Durasi absensi tidak valid! Waktu belajar minimal adalah 1 menit.";
+                header("Location: peserta_dashboard.php");
+                exit;
+            }
+            // ========================================================
+
+            // Jika valid (>= 1), Update waktu keluar dan durasi_menit ke tabel absensi
+            mysqli_query($koneksi, "UPDATE absensi SET waktu_out = NOW(), durasi_menit = '$menit_belajar_hari_ini' WHERE id_absen = '$id_absen'");
+            
+            // Tambahkan ke total jam_ditempuh di tabel pendaftaran
+            mysqli_query($koneksi, "UPDATE pendaftaran SET jam_ditempuh = jam_ditempuh + $menit_belajar_hari_ini WHERE id_daftar = '$id_daftar'");
+            
+            // Cek apakah total menit sudah memenuhi target kursus
+            $cek_total = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT jam_ditempuh FROM pendaftaran WHERE id_daftar = '$id_daftar'"));
+            
+            if ($cek_total['jam_ditempuh'] >= $target_menit) {
+                // LULUS OTOMATIS!
+                mysqli_query($koneksi, "UPDATE pendaftaran SET status = 'selesai' WHERE id_daftar = '$id_daftar'");
+                echo "<script>alert('Absen Keluar Berhasil! SELAMAT, Anda telah menyelesaikan seluruh jam kursus ini!'); window.location='peserta_dashboard.php';</script>";
+            } else {
+                echo "<script>alert('Absen Keluar Berhasil! Waktu belajar Anda hari ini tercatat: $menit_belajar_hari_ini menit.'); window.location='peserta_dashboard.php';</script>";
+            }
+            exit;
+        }
     }
 
     /* Ambil pendaftaran terakhir */
@@ -106,7 +152,7 @@
             </div>
         </nav>
 
-        <div class="container-fluid mt-4">
+<div class="container-fluid mt-4">
             <div class="card shadow-sm p-4 mb-4">
                 <h3>Selamat Datang, <?php echo $nama_user; ?> 👋</h3>
                 
@@ -118,6 +164,19 @@
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 <?php endif; ?>
+
+                <?php if (isset($_SESSION['error_absen'])): ?>
+                    <div class="alert alert-danger alert-dismissible fade show mt-3" role="alert">
+                        <i class="fas fa-times-circle me-2"></i>
+                        <strong>Gagal Absen Keluar!</strong> <?php echo $_SESSION['error_absen']; ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    <?php unset($_SESSION['error_absen']); // Hapus session agar tidak muncul terus ?>
+                <?php endif; ?>
+                <div class="alert alert-info mt-3 mb-0">
+                    <strong>No. Registrasi Aktif:</strong> <?php echo $data_reg ? $data_reg['no_reg'] : 'Belum mendaftar kursus'; ?>
+                </div>
+            </div>
 
                 <div class="alert alert-info mt-3 mb-0">
                     <strong>No. Registrasi Aktif:</strong> <?php echo $data_reg ? $data_reg['no_reg'] : 'Belum mendaftar kursus'; ?>
