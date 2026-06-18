@@ -24,34 +24,7 @@
             echo "<script>alert('Berhasil Absen Masuk! Selamat belajar.'); window.location='peserta_dashboard.php';</script>";
             exit;
         } 
-        
-        elseif ($_POST['aksi_absen'] == 'keluar') {
-            $id_absen = $_POST['id_absen'];
-            $target_jam = $_POST['target_jam'];
-            $target_menit = $target_jam * 60; // Konversi target ke menit
-            
-            // 1. Update waktu keluar dan hitung durasi_menit
-            mysqli_query($koneksi, "UPDATE absensi SET waktu_out = NOW(), durasi_menit = TIMESTAMPDIFF(MINUTE, waktu_in, NOW()) WHERE id_absen = '$id_absen'");
-            
-            // 2. Ambil durasi yang baru saja dihitung
-            $cek_durasi = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT durasi_menit FROM absensi WHERE id_absen = '$id_absen'"));
-            $menit_belajar_hari_ini = $cek_durasi['durasi_menit'];
 
-            // 3. Tambahkan ke total jam_ditempuh di tabel pendaftaran
-            mysqli_query($koneksi, "UPDATE pendaftaran SET jam_ditempuh = jam_ditempuh + $menit_belajar_hari_ini WHERE id_daftar = '$id_daftar'");
-            
-            // 4. Cek apakah total menit sudah memenuhi target kursus
-            $cek_total = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT jam_ditempuh FROM pendaftaran WHERE id_daftar = '$id_daftar'"));
-            
-            if ($cek_total['jam_ditempuh'] >= $target_menit) {
-                // LULUS OTOMATIS!
-                mysqli_query($koneksi, "UPDATE pendaftaran SET status = 'selesai' WHERE id_daftar = '$id_daftar'");
-                echo "<script>alert('Absen Keluar Berhasil! SELAMAT, Anda telah menyelesaikan seluruh jam kursus ini!'); window.location='peserta_dashboard.php';</script>";
-            } else {
-                echo "<script>alert('Absen Keluar Berhasil! Waktu belajar Anda hari ini tercatat: $menit_belajar_hari_ini menit.'); window.location='peserta_dashboard.php';</script>";
-            }
-            exit;
-        }
     }
 
     /* Ambil pendaftaran terakhir */
